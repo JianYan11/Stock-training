@@ -1,0 +1,7 @@
+{
+  "name": "Intuition Trader AI",
+  "description": "A gesture-controlled stock trading trainer. Use hand signals to predict market movements and get AI analysis from Gemini.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
