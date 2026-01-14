@@ -1,3 +1,26 @@
+/**
+ * 文件功能：摄像头视频流和手势识别组件
+ * 
+ * 主要职责：
+ * - 初始化并管理摄像头视频流
+ * - 加载 MediaPipe 手势识别模型
+ * - 实时检测用户手势（左手/右手位置）
+ * - 提供视觉反馈（左右区域划分、手势状态指示）
+ * - 处理摄像头和模型加载的错误状态
+ * 
+ * 关键功能：
+ * - 摄像头初始化：请求用户媒体权限，启动视频流
+ * - 手势识别循环：使用 requestAnimationFrame 持续检测手势
+ * - 区域划分：将视频画面分为左右两个区域（看涨/看跌）
+ * - 状态管理：加载中、就绪、错误三种状态
+ * 
+ * 依赖关系：
+ * - 依赖 gestureService 进行手势识别
+ * - 接收 gameState 控制显示状态
+ * - 通过 onGestureDetected 回调向父组件传递手势结果
+ * - 通过 onCameraReady 通知父组件摄像头就绪
+ */
+
 import React, { useRef, useEffect, useState } from 'react';
 import { initializeGestureRecognizer, predictGesture } from '../services/gestureService';
 import { GameState, GestureType } from '../types';

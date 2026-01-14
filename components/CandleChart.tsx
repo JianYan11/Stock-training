@@ -1,3 +1,26 @@
+/**
+ * 文件功能：K线图可视化组件
+ * 
+ * 主要职责：
+ * - 使用 SVG 绘制股票K线图（蜡烛图）
+ * - 支持历史数据和未来数据的展示切换
+ * - 自动计算价格范围和坐标转换
+ * - 响应式布局，自适应容器大小
+ * - 提供价格标签和网格线辅助阅读
+ * 
+ * 关键功能：
+ * - K线绘制：根据 OHLC 数据绘制蜡烛图（实体+影线）
+ * - 数据合并：将历史数据和未来数据合并显示
+ * - 坐标转换：将价格转换为屏幕坐标（Y轴），时间转换为X轴位置
+ * - 自适应布局：使用 ResizeObserver 监听容器大小变化
+ * - 视觉区分：未来数据使用半透明显示，历史数据正常显示
+ * 
+ * 依赖关系：
+ * - 接收 CandleData 数组作为输入
+ * - 使用 types.ts 中的 COLORS 常量
+ * - 通过 showFuture 属性控制是否显示未来数据
+ */
+
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { CandleData, COLORS } from '../types';
 

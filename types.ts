@@ -1,3 +1,21 @@
+/**
+ * 文件功能：TypeScript 类型定义文件
+ * 
+ * 主要职责：
+ * - 定义应用中使用的所有 TypeScript 接口、枚举和常量
+ * - 提供类型安全保障，确保数据类型一致性
+ * 
+ * 关键导出：
+ * - CandleData: K线数据接口（开盘价、收盘价、最高价、最低价、成交量、时间）
+ * - GameState: 游戏状态枚举（初始化、空闲、倒计时、游戏中、分析中、结果显示）
+ * - GestureType: 手势类型枚举（无手势、左手、右手）
+ * - AnalysisResult: AI 分析结果接口
+ * - COLORS: 颜色常量（中国股市配色：红涨绿跌）
+ * 
+ * 依赖关系：
+ * - 被 App.tsx、组件和服务文件广泛引用
+ */
+
 export interface CandleData {
   time: number;
   open: number;

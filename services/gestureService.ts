@@ -1,3 +1,30 @@
+/**
+ * 文件功能：手势识别服务
+ * 
+ * 主要职责：
+ * - 初始化和管理 MediaPipe GestureRecognizer 模型
+ * - 从视频元素中实时识别手势
+ * - 将手势位置转换为应用层的手势类型（左手/右手）
+ * - 处理模型加载和识别的错误情况
+ * 
+ * 关键功能：
+ * - initializeGestureRecognizer: 异步加载 MediaPipe 手势识别模型
+ *   - 从 CDN 加载 MediaPipe Tasks Vision 库
+ *   - 初始化 WASM 运行时环境
+ *   - 加载预训练的手势识别模型
+ *   - 抑制控制台日志输出（减少噪音）
+ * - predictGesture: 从视频帧中预测手势类型
+ *   - 使用 MediaPipe 识别手部关键点
+ *   - 根据手部中心位置（中指MCP关节）判断左右
+ *   - 考虑视频镜像效果（CSS transform: scaleX(-1)）
+ *   - 返回 GestureType 枚举值
+ * 
+ * 依赖关系：
+ * - 依赖 MediaPipe Tasks Vision CDN 资源
+ * - 使用 types.ts 中的 GestureType 枚举
+ * - 被 WebcamFeed 组件调用进行实时手势识别
+ */
+
 import { GestureType } from '../types';
 
 let gestureRecognizer: any = null;

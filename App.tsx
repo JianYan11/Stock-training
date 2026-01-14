@@ -1,3 +1,27 @@
+/**
+ * 文件功能：主应用组件
+ * 
+ * 主要职责：
+ * - 管理整个应用的游戏状态流程（初始化、空闲、倒计时、游戏中、分析、结果）
+ * - 处理手势识别结果并转换为交易决策（看涨/看跌）
+ * - 管理股票数据生成和展示
+ * - 集成 AI 分析服务（Gemini）进行技术分析
+ * - 处理游戏计时、得分统计和结果展示
+ * 
+ * 关键功能：
+ * - 游戏状态机：INIT -> IDLE -> COUNTDOWN -> PLAYING -> ANALYZING -> RESULT
+ * - 手势处理：将左手/右手手势映射为看涨/看跌预测
+ * - 数据管理：生成股票数据、分割历史/未来数据
+ * - UI 渲染：左侧摄像头面板、右侧K线图、结果展示
+ * 
+ * 依赖关系：
+ * - 使用 WebcamFeed 组件进行手势识别
+ * - 使用 CandleChart 组件展示K线图
+ * - 依赖 stockService 生成股票数据
+ * - 依赖 geminiService 进行AI分析
+ * - 依赖 types.ts 中的类型定义
+ */
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WebcamFeed } from './components/WebcamFeed';
 import { CandleChart } from './components/CandleChart';
