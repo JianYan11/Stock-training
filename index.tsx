@@ -32,7 +32,8 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
-
+// 使用 React 18 的 createRoot API 创建根节点，并渲染主应用组件 App，
+// 外部包裹 React.StrictMode 以辅助捕捉潜在开发问题，仅在开发环境生效。
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>

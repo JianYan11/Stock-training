@@ -2,14 +2,13 @@
  * 文件功能：主应用组件
  * 
  * 主要职责：
- * - 管理整个应用的游戏状态流程（初始化、空闲、倒计时、游戏中、分析、结果）
+ * - 管理整个应用的游戏状态流程（初始化、空闲、倒计时、游戏中、结果）
  * - 处理手势识别结果并转换为交易决策（看涨/看跌）
  * - 管理股票数据生成和展示
- * - 集成 AI 分析服务（Gemini）进行技术分析
  * - 处理游戏计时、得分统计和结果展示
  * 
  * 关键功能：
- * - 游戏状态机：INIT -> IDLE -> COUNTDOWN -> PLAYING -> ANALYZING -> RESULT
+ * - 游戏状态机：INIT -> IDLE -> COUNTDOWN -> PLAYING -> RESULT
  * - 手势处理：将左手/右手手势映射为看涨/看跌预测
  * - 数据管理：生成股票数据、分割历史/未来数据
  * - UI 渲染：左侧摄像头面板、右侧K线图、结果展示
@@ -18,7 +17,6 @@
  * - 使用 WebcamFeed 组件进行手势识别
  * - 使用 CandleChart 组件展示K线图
  * - 依赖 stockService 生成股票数据
- * - 依赖 geminiService 进行AI分析
  * - 依赖 types.ts 中的类型定义
  */
 
@@ -26,7 +24,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WebcamFeed } from './components/WebcamFeed';
 import { CandleChart } from './components/CandleChart';
 import { generateStockData, splitDataForGame } from './services/stockService';
-import { analyzeStockPattern } from './services/geminiService';
 import { CandleData, GameState, GestureType, COLORS } from './types';
 import { Hand, TrendingUp, TrendingDown, Play, RotateCcw } from 'lucide-react';
 
@@ -36,39 +33,74 @@ export default function App() {
   const [stockData, setStockData] = useState<CandleData[]>([]);
   const [futureData, setFutureData] = useState<CandleData[]>([]);
   const [timer, setTimer] = useState(10);
-  const [result, setResult] = useState<{win: boolean, change: number, explanation: string} | null>(null);
+  const [countdown, setCountdown] = useState(5);
+  const [result, setResult] = useState<{win: boolean, change: number} | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
-  const [gestureHoldTime, setGestureHoldTime] = useState(0);
 
   // 初始化时直接生成数据，这样用户一进来就能看到图
   useEffect(() => {
-    initNewRound();
+    const loadData = async () => {
+      try {
+        const fullData = await generateStockData(60);
+        const { visibleData, futureData } = splitDataForGame(fullData);
+        setStockData(visibleData);
+        setFutureData(futureData);
+        setResult(null);
+        setTimer(10);
+        // 初始化完成后进入空闲状态
+        setGameState(GameState.IDLE);
+      } catch (error) {
+        console.error('Failed to load stock data:', error);
+        // 即使加载失败，也设置状态，避免页面卡住
+        setGameState(GameState.IDLE);
+      }
+    };
+    loadData();
   }, []);
 
-  const initNewRound = useCallback(() => {
-    const fullData = generateStockData(60);
-    const { visibleData, futureData } = splitDataForGame(fullData);
-    setStockData(visibleData);
-    setFutureData(futureData);
-    setResult(null);
-    setTimer(10);
-    // 不自动进入倒计时，等待用户准备好（手势触发或点击）
-    if (gameState !== GameState.INIT) {
-       setGameState(GameState.IDLE);
+  const initNewRound = useCallback(async () => {
+    try {
+      const fullData = await generateStockData(60);
+      const { visibleData, futureData } = splitDataForGame(fullData);
+      setStockData(visibleData);
+      setFutureData(futureData);
+      setResult(null);
+      setTimer(10);
+      // 不自动进入倒计时，等待用户准备好（手势触发或点击）
+      if (gameState !== GameState.INIT) {
+         setGameState(GameState.IDLE);
+      }
+    } catch (error) {
+      console.error('Failed to initialize new round:', error);
+      // 即使失败也设置状态，避免卡住
+      setGameState(GameState.IDLE);
     }
   }, [gameState]);
 
   const startGame = useCallback(() => {
+    setCountdown(5);
     setGameState(GameState.COUNTDOWN);
   }, []);
 
   // Handle Countdown
   useEffect(() => {
     if (gameState === GameState.COUNTDOWN) {
-      const timeout = setTimeout(() => {
-        setGameState(GameState.PLAYING);
-      }, 3000);
-      return () => clearTimeout(timeout);
+      // 立即显示5
+      setCountdown(5);
+      
+      // 每秒更新倒计时
+      const interval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setGameState(GameState.PLAYING);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => clearInterval(interval);
     }
   }, [gameState]);
 
@@ -85,7 +117,7 @@ export default function App() {
     }
   }, [gameState, timer]);
 
-  const handleTimeUp = async () => {
+  const handleTimeUp = () => {
     // Determine action based on last gesture
     let userPredictionUp = false; // Default to sell if unsure? Or Hold?
     let validDecision = false;
@@ -98,30 +130,22 @@ export default function App() {
       validDecision = true;
     }
 
-    setGameState(GameState.ANALYZING);
-
     const lastPrice = stockData[stockData.length - 1].close;
     const finalPrice = futureData[futureData.length - 1].close;
     const isActuallyUp = finalPrice > lastPrice;
     const changePercent = ((finalPrice - lastPrice) / lastPrice) * 100;
-    
-    // Fetch AI analysis
-    const analysis = await analyzeStockPattern(stockData);
 
     let isCorrect = false;
-    let explanation = analysis;
 
     if (!validDecision) {
       isCorrect = false;
-      explanation = "未检测到明确手势，判定为失败。 " + analysis;
     } else {
       isCorrect = isActuallyUp === userPredictionUp;
     }
 
     setResult({
       win: isCorrect,
-      change: changePercent,
-      explanation: explanation
+      change: changePercent
     });
     
     setScore(s => ({ 
@@ -132,15 +156,31 @@ export default function App() {
     setGameState(GameState.RESULT);
   };
 
+  // 手势持续检测计时器，用于确认手势稳定
+  const gestureHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const gestureHoldDuration = 800; // 手势需要持续800ms才触发
+
   // Gesture Handling Logic
   const handleGesture = useCallback((gesture: GestureType) => {
     setCurrentGesture(gesture);
 
-    // IDLE 状态下，如果检测到任何手势，且持续了一小会儿，可以开始游戏 (这里为了简单，检测到即准备开始)
+    // IDLE 状态下，如果检测到手势，需要持续一段时间才自动开始游戏
     if (gameState === GameState.IDLE) {
        if (gesture === GestureType.HAND_LEFT || gesture === GestureType.HAND_RIGHT) {
-          // 这里可以加一个延时确认，防止误触，但为了响应快，直接开始
-          startGame(); 
+          // 清除之前的计时器
+          if (gestureHoldTimerRef.current) {
+            clearTimeout(gestureHoldTimerRef.current);
+          }
+          // 设置新的计时器，手势持续800ms后自动开始游戏
+          gestureHoldTimerRef.current = setTimeout(() => {
+            startGame();
+          }, gestureHoldDuration);
+       } else {
+          // 手势消失，清除计时器
+          if (gestureHoldTimerRef.current) {
+            clearTimeout(gestureHoldTimerRef.current);
+            gestureHoldTimerRef.current = null;
+          }
        }
     }
     
@@ -196,12 +236,30 @@ export default function App() {
         {/* Manual Control Fallback */}
         <div className="grid grid-cols-1 gap-3">
           { (gameState === GameState.IDLE || gameState === GameState.RESULT || gameState === GameState.INIT) ? (
-             <button 
-               onClick={gameState === GameState.RESULT ? initNewRound : startGame} 
-               className="bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
-             >
-               <Play className="w-5 h-5" /> {gameState === GameState.RESULT ? "下一局" : "开始游戏"}
-             </button>
+             <>
+               {gameState === GameState.IDLE && (
+                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-2">
+                   <div className="flex items-center gap-2 text-blue-300 mb-2">
+                     <Hand className="w-5 h-5" />
+                     <span className="font-bold">准备开始</span>
+                   </div>
+                   <p className="text-blue-200 text-sm">
+                     将手放在摄像头前，系统会自动检测并开始游戏
+                   </p>
+                   {currentGesture !== GestureType.NONE && (
+                     <p className="text-blue-400 text-xs mt-2 animate-pulse">
+                       检测到手势，即将开始...
+                     </p>
+                   )}
+                 </div>
+               )}
+               <button 
+                 onClick={gameState === GameState.RESULT ? initNewRound : startGame} 
+                 className="bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+               >
+                 <Play className="w-5 h-5" /> {gameState === GameState.RESULT ? "下一局" : "手动开始"}
+               </button>
+             </>
           ) : (
              <div className="py-4 text-center">
                <span className="text-slate-400 font-mono text-sm block mb-1">
@@ -236,8 +294,13 @@ export default function App() {
       <div className="flex-1 bg-slate-900 p-6 flex flex-col relative">
         {gameState === GameState.COUNTDOWN && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-             <div className="text-9xl font-black text-white animate-ping">
-               Ready
+             <div className="text-center">
+               <div className="text-9xl font-black text-white animate-pulse mb-4">
+                 {countdown}
+               </div>
+               <div className="text-2xl text-white/80 font-bold">
+                 游戏即将开始
+               </div>
              </div>
           </div>
         )}
@@ -256,47 +319,27 @@ export default function App() {
           )}
 
           {/* Result Overlay */}
-          {(gameState === GameState.RESULT || gameState === GameState.ANALYZING) && (
+          {gameState === GameState.RESULT && result && (
             <div className="absolute top-4 left-4 right-4 bg-slate-900/90 backdrop-blur-md border border-slate-700 p-6 rounded-xl animate-fade-in shadow-2xl z-10">
                <div className="flex items-start justify-between">
                  <div>
-                   {gameState === GameState.ANALYZING ? (
-                      <h2 className="text-4xl font-bold mb-2 text-blue-400 animate-pulse">
-                        正在结算...
-                      </h2>
-                   ) : result && (
-                     <>
-                       <h2 className={`text-4xl font-bold mb-2 ${result.win ? 'text-yellow-400' : 'text-slate-400'}`}>
-                         {result.win ? '判断正确! 🎉' : '判断错误 ❌'}
-                       </h2>
-                       <div className="flex items-center gap-4 text-xl">
-                          <span className="text-slate-300">实际走势:</span>
-                          <span className={`font-mono font-bold ${result.change >= 0 ? 'text-red-500' : 'text-green-500'}`}>
-                            {result.change >= 0 ? '+' : ''}{result.change.toFixed(2)}%
-                          </span>
-                       </div>
-                     </>
-                   )}
+                   <h2 className={`text-4xl font-bold mb-2 ${result.win ? 'text-yellow-400' : 'text-slate-400'}`}>
+                     {result.win ? '判断正确! 🎉' : '判断错误 ❌'}
+                   </h2>
+                   <div className="flex items-center gap-4 text-xl">
+                      <span className="text-slate-300">实际走势:</span>
+                      <span className={`font-mono font-bold ${result.change >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                        {result.change >= 0 ? '+' : ''}{result.change.toFixed(2)}%
+                      </span>
+                   </div>
                  </div>
                  
-                 {gameState === GameState.RESULT && (
-                   <button 
-                     onClick={initNewRound}
-                     className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
-                   >
-                     <RotateCcw className="w-5 h-5" /> 下一局
-                   </button>
-                 )}
-               </div>
-
-               <div className="mt-6 pt-6 border-t border-slate-700">
-                 <div className="flex items-center gap-2 mb-2">
-                   <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
-                   <h3 className="text-purple-400 font-semibold text-sm uppercase tracking-wider">AI 技术分析 (Gemini)</h3>
-                 </div>
-                 <p className="text-slate-200 leading-relaxed text-lg">
-                   {gameState === GameState.ANALYZING ? "正在分析 K 线形态..." : result?.explanation}
-                 </p>
+                 <button 
+                   onClick={initNewRound}
+                   className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                 >
+                   <RotateCcw className="w-5 h-5" /> 下一局
+                 </button>
                </div>
             </div>
           )}
